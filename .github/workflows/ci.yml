@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest      # Apple Silicon
+            lib-name: libkotlin_fea_rs.dylib
+          - os: macos-15-intel    # Intel
+            lib-name: libkotlin_fea_rs.dylib
+          - os: ubuntu-latest
+            lib-name: libkotlin_fea_rs.so
+          - os: windows-latest
+            lib-name: kotlin_fea_rs.dll
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        env:
+          CARGO_PATH: cargo
+        run: ./gradlew build test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: build/reports/tests/

@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-native:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest       # Apple Silicon runner
+            target: aarch64-apple-darwin
+            classifier: macos-arm64
+            lib-name: libkotlin_fea_rs.dylib
+          - os: macos-15-intel     # Intel runner
+            target: x86_64-apple-darwin
+            classifier: macos-x64
+            lib-name: libkotlin_fea_rs.dylib
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            classifier: linux-x64
+            lib-name: libkotlin_fea_rs.so
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            classifier: linux-arm64
+            lib-name: libkotlin_fea_rs.so
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            classifier: windows-x64
+            lib-name: kotlin_fea_rs.dll
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            classifier: windows-arm64
+            lib-name: kotlin_fea_rs.dll
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build native library
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.classifier }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib-name }}
+          retention-days: 1
+
+  build-kotlin:
+    runs-on: macos-latest
+    needs: []  # Build Kotlin bindings in parallel, doesn't need native libs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Generate Kotlin bindings
+        env:
+          CARGO_PATH: cargo
+        run: |
+          cargo build --release
+          cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
+            --library target/release/libkotlin_fea_rs.dylib \
+            --language kotlin \
+            --no-format \
+            --config uniffi.toml \
+            --out-dir bindings
+
+      - name: Upload Kotlin bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-bindings
+          path: bindings/
+          retention-days: 1
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build-native, build-kotlin]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Download Kotlin bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: kotlin-bindings
+          path: bindings/
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: native-libs/
+
+      - name: Prepare native libraries for publishing
+        run: |
+          mkdir -p build/native
+          for dir in native-libs/native-*; do
+            classifier=$(basename "$dir" | sed 's/native-//')
+            mkdir -p "build/native/$classifier"
+            cp "$dir"/* "build/native/$classifier/"
+          done
+          ls -la build/native/*/
+
+      - name: Build base JAR
+        run: |
+          # Skip Rust build tasks since we have pre-built artifacts
+          ./gradlew jar sourcesJar javadocJar \
+            -x buildRustLibrary \
+            -x generateKotlinBindings \
+            -x copyNativeLibrary \
+            -x copyNativeLibraryForTest
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
+        run: |
+          ./gradlew publishToMavenCentral --no-configuration-cache \
+            -x buildRustLibrary \
+            -x generateKotlinBindings \
+            -x copyNativeLibrary \
+            -x copyNativeLibraryForTest
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [publish]
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*
