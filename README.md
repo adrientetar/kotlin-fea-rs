@@ -152,7 +152,7 @@ Development
 To build this library, you need:
 
 - [Rust](https://rustup.rs/) (latest stable version) with the `cargo` build tool in your PATH
-- JDK 11 or higher
+- JDK 21 or higher
 
 ```bash
 # Build
