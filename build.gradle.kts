@@ -8,7 +8,9 @@ val GROUP: String by project
 val VERSION_NAME: String by project
 
 group = GROUP
-version = VERSION_NAME
+// Pass -Prelease to publish the clean version; otherwise builds use -SNAPSHOT
+// to avoid conflicting with Maven Central releases.
+version = if (providers.gradleProperty("release").isPresent) VERSION_NAME else "$VERSION_NAME-SNAPSHOT"
 
 repositories {
     mavenCentral()

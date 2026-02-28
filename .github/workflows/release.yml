@@ -135,7 +135,7 @@ jobs:
       - name: Build base JAR
         run: |
           # Skip Rust build tasks since we have pre-built artifacts
-          ./gradlew jar sourcesJar javadocJar \
+          ./gradlew jar sourcesJar javadocJar -Prelease \
             -x buildRustLibrary \
             -x generateKotlinBindings \
             -x copyNativeLibrary \
@@ -148,7 +148,7 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
         run: |
-          ./gradlew publishToMavenCentral --no-configuration-cache \
+          ./gradlew publishToMavenCentral --no-configuration-cache -Prelease \
             -x buildRustLibrary \
             -x generateKotlinBindings \
             -x copyNativeLibrary \
