@@ -168,9 +168,28 @@ jobs:
         with:
           path: artifacts/
 
+      - name: Rename artifacts with platform classifier
+        run: |
+          mkdir -p release-assets
+          for dir in artifacts/native-*; do
+            classifier=$(basename "$dir" | sed 's/native-//')
+            for file in "$dir"/*; do
+              name=$(basename "$file")
+              ext="${name##*.}"
+              base="${name%.*}"
+              cp "$file" "release-assets/${base}-${classifier}.${ext}"
+            done
+          done
+          # Copy non-native artifacts as-is
+          for dir in artifacts/*/; do
+            case "$(basename "$dir")" in native-*) continue ;; esac
+            cp "$dir"/* release-assets/ 2>/dev/null || true
+          done
+          ls -la release-assets/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
           files: |
-            artifacts/**/*
+            release-assets/*
