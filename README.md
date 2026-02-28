@@ -13,7 +13,7 @@ kotlin-fea-rs
 
 [fea-rs](https://github.com/googlefonts/fontc/tree/main/fea-rs) is a Rust library for parsing and compiling Adobe OpenType Feature File (.fea) syntax into binary OpenType tables (GSUB, GPOS, GDEF).
 
-This library provides Kotlin bindings to fea-rs using Mozilla's [UniFFI](https://mozilla.github.io/uniffi-rs/) toolchain, enabling in-process FEA compilation for live preview shaping in font editors.
+This library provides Kotlin bindings to fea-rs using Mozilla's [UniFFI](https://github.com/mozilla/uniffi-rs) toolchain, enabling in-process FEA compilation for live preview shaping in font editors.
 
 Maven library
 -------------
@@ -183,7 +183,3 @@ val tableOverrides = TableOverrides(
 shapingService.shape(text, font, tableOverrides)
 ```
 
-License
--------
-
-Apache 2.0. See [LICENSE.txt](LICENSE.txt).
