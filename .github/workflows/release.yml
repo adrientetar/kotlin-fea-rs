@@ -135,7 +135,7 @@ jobs:
       - name: Build base JAR
         run: |
           # Skip Rust build tasks since we have pre-built artifacts
-          ./gradlew jar sourcesJar javadocJar -Prelease \
+          ./gradlew jar sourcesJar plainJavadocJar -Prelease \
             -x buildRustLibrary \
             -x generateKotlinBindings \
             -x copyNativeLibrary \
